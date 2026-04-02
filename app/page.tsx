@@ -17,6 +17,7 @@ import {
   TrendingUp,
   User,
 } from "lucide-react"
+import { supabase } from "@/lib/supabase"
 
 function cn(...inputs: (string | undefined | null | false)[]) {
   return twMerge(clsx(inputs))
@@ -326,7 +327,48 @@ function UsageChart() {
   )
 }
 
-export default function DashboardPage() {
+export const dynamic = "force-dynamic"
+
+function toFiniteNumber(value: unknown): number | null {
+  const n =
+    typeof value === "number"
+      ? value
+      : typeof value === "string"
+        ? Number(value)
+        : NaN
+  return Number.isFinite(n) ? n : null
+}
+
+export default async function DashboardPage() {
+  // Fetch latest server-side metrics (Server Component: no client JS needed).
+  const { data: latest } = await supabase
+    .from("server_metrics")
+    .select("*")
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .single()
+
+  console.log("DEBUG_DATA:", latest)
+
+  // Fallbacks keep the page rendering even if the table is empty.
+  const cpuUsage = toFiniteNumber(latest?.cpu_usage)
+  const memoryUsage = toFiniteNumber(latest?.memory_usage)
+
+  const cpuPercentage =
+    cpuUsage == null ? 67 : Math.max(0, Math.min(100, Math.round(cpuUsage)))
+  const cpuValue = cpuUsage == null ? "67.2" : cpuUsage.toFixed(1)
+
+  // Assumes dashboard is displaying memory utilization vs 16GB.
+  const memoryTotalGB = 16
+  const memoryPercentage =
+    memoryUsage == null
+      ? 78
+      : Math.max(
+          0,
+          Math.min(100, Math.round((memoryUsage / memoryTotalGB) * 100))
+        )
+  const memoryValue = memoryUsage == null ? "12.4" : memoryUsage.toFixed(1)
+
   return (
     <div className="flex h-screen overflow-hidden bg-zinc-950 text-zinc-50">
       <DashboardSidebar />
@@ -339,18 +381,18 @@ export default function DashboardPage() {
             <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
               <KPICard
                 title="CPU Usage"
-                value="67.2"
+                value={cpuValue}
                 unit="%"
-                percentage={67}
+                percentage={cpuPercentage}
                 trend="up"
                 icon={<Cpu className="h-5 w-5" aria-hidden />}
                 color="cyan"
               />
               <KPICard
                 title="Memory"
-                value="12.4"
+                value={memoryValue}
                 unit="GB / 16 GB"
-                percentage={78}
+                percentage={memoryPercentage}
                 trend="neutral"
                 icon={<MemoryStick className="h-5 w-5" aria-hidden />}
                 color="green"

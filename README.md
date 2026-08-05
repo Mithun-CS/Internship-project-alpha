@@ -1,46 +1,110 @@
-# 🚀 Elite-Pulse: Real-Time Infrastructure Monitoring Dashboard
+# Pulse Infrastructure Monitor
 
-A high-density, low-latency monitoring solution designed for sub-second data visualization and cluster health management.
+A real-time infrastructure monitoring dashboard that streams live sensor metrics over WebSockets and protects the UI behind Supabase Auth. Built to demonstrate production patterns for low-latency data visualization, secure session handling, and end-to-end full-stack TypeScript.
 
-![Next.js](https://img.shields.io/badge/Next.js-14-black?style=for-the-badge&logo=next.js)
-![Supabase](https://img.shields.io/badge/Supabase-PostgreSQL-blueviolet?style=for-the-badge&logo=supabase)
-![TailwindCSS](https://img.shields.io/badge/Tailwind-CSS-38B2AC?style=for-the-badge&logo=tailwind-css)
-![TypeScript](https://img.shields.io/badge/TypeScript-007ACC?style=for-the-badge&logo=typescript)
+## Key Technical Features & Achievements
 
----
+- **Realtime Postgres → UI pipeline:** Client chart subscribes to Supabase Realtime (`postgres_changes` on `INSERT` for `public.sensors`) and appends each new row into a rolling window of the latest 20 points—no polling loop required for chart updates.
+- **Auth-gated Server Components:** The dashboard is a Next.js App Router Server Component that validates the session with `supabase.auth.getUser()`, redirects unauthenticated users to `/login`, and signs out via a Server Action that clears the cookie-backed session.
+- **SSR-safe chart hydration:** Recharts is client-only and guarded with a `mounted` flag so SVG/layout code never runs during server render, avoiding classic hydration mismatches.
+- **Built-in pulse simulator:** An invisible client `Simulator` inserts randomized CPU readings into `sensors` every 5 seconds, providing continuous realtime traffic for local demos and load-path testing.
 
-## 💡 The Problem & Solution
-Standard monitoring dashboards often rely on "polling" (refreshing every X seconds), which creates unnecessary server load and delayed insights. **Elite-Pulse** solves this by implementing a **Bi-Directional WebSocket Pipeline** using PostgreSQL Listen/Notify triggers.
+## System Architecture & Tech Stack
 
-### Key Engineering Achievements:
-- **Sub-Second Latency:** Real-time UI updates triggered directly from database inserts via Supabase Realtime.
-- **Secure Middleware Architecture:** Integrated Next.js Middleware with Supabase Auth to ensure zero-access to dashboard metrics without valid JWT credentials.
-- **Hydration Guarding Pattern:** Solved complex SSR vs. CSR synchronization issues for responsive SVG data rendering.
-- **Automated Pulse Simulation:** Engineered a background heartbeat service to simulate high-density metric traffic for testing environments.
+| Layer / Component | Technology | Role in the App |
+| --- | --- | --- |
+| UI Framework | Next.js 16 (App Router) + React 19 | Server/Client component split, routing, Server Actions |
+| Language | TypeScript | End-to-end type safety across app, components, and middleware |
+| Styling | Tailwind CSS 4 | Dark, high-density ops UI and responsive layout |
+| Auth & Middleware | Supabase Auth + `@supabase/ssr` + Next.js Middleware | Cookie session refresh, login, logout, route protection |
+| Database | Supabase PostgreSQL (`sensors` table) | Persistent metric history (`name`, `value`, `created_at`) |
+| Realtime | Supabase Realtime (WebSockets) | Push new inserts to the browser chart instantly |
+| Visualization | Recharts | Responsive area chart with monotone interpolation |
+| UX Feedback | Sonner | Toast notifications for unfinished nav modules |
+| Hosting Target | Vercel-ready Next.js build | Static + dynamic route deployment pipeline |
 
----
+```text
+[Browser / Dashboard]
+        |
+        | 1) Email/password login (Supabase Auth)
+        v
+[Next.js App Router]
+  - middleware.ts ........ refreshes auth cookies
+  - app/page.tsx ......... Server Component auth gate
+  - SensorChart.tsx ...... fetch history + Realtime subscribe
+  - Simulator.tsx ........ periodic INSERT into sensors
+        |
+        | REST + WebSocket
+        v
+[Supabase]
+  Auth JWT  +  PostgreSQL (public.sensors)  +  Realtime broadcast
+        |
+        | INSERT event
+        v
+[SensorChart] updates Recharts area series (last 20 points)
+```
 
-## 🛠 Technical Stack
-- **Frontend:** Next.js 14 (App Router), Tailwind CSS, Framer Motion
-- **Charts:** Recharts (SVG-optimized responsive containers)
-- **Backend-as-a-Service:** Supabase (PostgreSQL)
-- **Real-time Engine:** WebSockets & Broadcast channels
-- **Deployment:** Vercel (CI/CD Pipeline)
+## Monorepo / File Structure
 
----
+```text
+pulse-infrastructure-monitor/
+├── app/
+│   ├── login/
+│   │   └── page.tsx          # Client login (signInWithPassword)
+│   ├── page.tsx              # Protected dashboard (Server Component)
+│   ├── layout.tsx            # Root layout + Sonner toaster
+│   └── globals.css           # Global Tailwind styles
+├── components/
+│   ├── SensorChart.tsx       # Realtime Recharts stream
+│   ├── Simulator.tsx         # Background metric injector
+│   └── SidebarNav.tsx        # Sidebar + toast stubs
+├── lib/
+│   └── supabase.ts           # Shared Supabase client helper
+├── middleware.ts             # Supabase session refresh middleware
+├── public/                   # Static assets
+├── package.json
+├── next.config.ts
+└── tsconfig.json
+```
 
-## 🏗 System Architecture
+## Getting Started & Local Setup
 
+### Prerequisites
+- Node.js 18+ (recommended: current LTS)
+- A Supabase project with:
+  - Auth enabled (email/password)
+  - A `public.sensors` table (at minimum: `name`, `value`, `created_at`)
+  - Realtime enabled for `public.sensors`
 
-1. **The Pulse:** A simulated or real hardware event inserts a row into the `sensors` table.
-2. **The Trigger:** PostgreSQL identifies the change and broadcasts a notification.
-3. **The Stream:** The client-side React hook listens to the WebSocket channel.
-4. **The Render:** Recharts performs a smooth "monotone" interpolation to update the UI instantly.
-
----
-
-## 🚀 Getting Started
-1. **Clone & Install:**
+### 1. Clone the repository
 ```bash
-git clone [https://github.com/Mithun-CS/pulse-infrastructure-monitor.git]
+git clone https://github.com/Mithun-CS/pulse-infrastructure-monitor.git
+cd pulse-infrastructure-monitor
+```
+
+### 2. Install dependencies
+```bash
 npm install
+```
+
+### 3. Configure environment variables
+Create a `.env.local` file in the project root:
+
+```bash
+NEXT_PUBLIC_SUPABASE_URL=your_supabase_project_url
+NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
+```
+
+### 4. Start the development server
+```bash
+npm run dev
+```
+
+Open [http://localhost:3000](http://localhost:3000). Unauthenticated users are redirected to `/login`. After signing in, the dashboard loads, the simulator begins inserting CPU pulses, and the latency chart updates in realtime.
+
+### Useful scripts
+```bash
+npm run build   # Production build
+npm run start   # Run production server
+npm run lint    # ESLint
+```

@@ -42,5 +42,5 @@ Standard monitoring dashboards often rely on "polling" (refreshing every X secon
 ## 🚀 Getting Started
 1. **Clone & Install:**
 ```bash
-git clone [https://github.com/Mithun-CS/Internship-project-alpha.git]
+git clone [https://github.com/Mithun-CS/pulse-infrastructure-monitor.git]
 npm install
